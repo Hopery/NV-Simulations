@@ -1,5 +1,5 @@
 """
-Nitrogen nucleus and carbon electro spin system. Simulation for the following
+Nitrogen and carbon system. Simulation for the following
 experiments:
     * Ramsey experiment
     * SpinEcho experiment with XYXYYX sequence

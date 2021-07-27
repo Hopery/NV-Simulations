@@ -4,7 +4,6 @@ i.e. not taking into account carbon13 nucleus:
     * Observe Spins under magnetic field
     * ODMR experiment
     * Rabi experiment 
-    * 
 """
 
 using Plots: length
