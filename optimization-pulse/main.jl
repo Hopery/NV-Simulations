@@ -1,3 +1,4 @@
+using Plots: length
 """
 Simulation of a 15 μm laser into diamond, swhowing a rabi experiment.
 """
@@ -57,6 +58,10 @@ Azz = 10e-3
 
 # Omega electron (MHz)
 ω = D - γₙᵥ * B
+
+# Laser dimensions in μm
+width = 15
+len = 10
 #####################################################################################
 # Hamiltonians
 #To get a Hamiltonian with the energy levels in the diagonal (zfs = zero field splitting)
@@ -127,12 +132,12 @@ Does a Rabi experiment and displays it in function of
 """
 function rabi()
     time = 0.001:0.005:1
-    positions = 0.0:0.01:15
+    positions = 0.0:0.01:width
     tmp = zeros(length(time),length(positions))
     for (i,t) ∈ enumerate(time)
         for (j,r) ∈ enumerate(positions)
             tmEv = timeEvolution(H(r),ρ,t)
-            tmp[i,j] = traceWithProy(tmEv)*r
+            tmp[i,j] = traceWithProy(tmEv)*r*len
         end
     end
     plt1 = plot(time, real(tmp), 
