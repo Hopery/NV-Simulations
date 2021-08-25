@@ -141,18 +141,18 @@ end
 function mw_element(r::Float64, t::Float64, γ::Float64)::Array{Complex{Float64}}
     Ω₀ = Ω(r,t)
     S = [0 0.5*exp(γ*im) ; 0.5*exp(-γ*im) 0]
-    # return Ω₀*S ⊗ Matrix(1.0I,2,2) + H_zfs + H_zeemanₙᵥ + H_drive_freq + H_zeeman₁₃ + H_hyperfine
     return Ω₀*S ⊗ Matrix(1.0I,2,2) + H_zfs + H_zeemanₙᵥ + H_drive_freq
 end
 
-function rabi_t(r::Float64, time::Array{Float64}, Ωs::Array{Float64}, γ::Float64, Δt::Float64, amplitudes::Array{Float64})
-    t = LinearInterpolation(time,Ωs, extrapolation_bc=Flat())(amplitudes)
+function rabi_t(time::Array{Float64}, amplitudes::Array{Float64}, γ::Array{Float64}, Δt::Float64, phsPoints::Array{Float64},ampltPoints::Array{Float64})
+    ampl = LinearInterpolation(time,amplitudes, extrapolation_bc=Flat())(ampltPoints)
+    phs = LinearInterpolation(time,γ, extrapolation_bc=Flat())(phsPoints)
     positions = 0.0:0.01:width
     tmp::Array{Complex{Float64}} = zeros(length(time),length(positions))
     ρ₀ = ρ
-    for (i,tᵢ) in enumerate(t)
+    for (i,Ωᵢ) in enumerate(ampl)
         for (j,k) ∈ enumerate(positions)
-            hm = mw_element(r,tᵢ,γ)
+            hm = mw_element(r,Ωᵢ,phs[i])
             ρ₀ = timeEvolution(hm,ρ₀,Δt)
             tmp[i,j] = traceWithProy(ρ₀)*k
         end
@@ -181,23 +181,7 @@ function rabi()
     display(plot(plt2,layout=(2,1)))
 end
 
-# unction hamiltonianTimeEv(t::Float64)
-#    time = 0.0:1:300
-#    positions = 0.0:0.01:width
-#    tmp::Array{Complex{Float64}} = zeros(length(time),length(positions))
-#    hamiltonians = mw_element(t)
-#    append!(hamiltonians,tau_element(t))
-#    append!(hamiltonians,mw_element(t))
-#    ρ₀ = ρ
-#    for hm ∈ hamiltonians
-#        for (j,r) ∈ enumerate(positions)
-#            ρ₀ = timeEvolution(hm,ρ₀,t)
-#            tmp[i,j] = traceWithProy(ρ₀)*r*high
-#        end
-#    end
-#    plt2 = plot(time, real(sum(tmp,dims=2)))
-#    display(plot(plt2,layout=(2,1)))
-# nd
+
 function getAmplitudesOrPhaseAndTimes(path::String)::Tuple{Array{Float64},Array{Float64}}
     points::Array{Float64} = []
     times::Array{Float64} = []
@@ -217,60 +201,20 @@ end
 #####################################################################################
 # Run
 
-
 function main()
     # t = rabi()
     # @show t
 
-    # ones(length(time))*16
-
-    # times::Array{Float64} = 0.0:3e-3:300e-3
-    # points::Array{Float64} = ones(length(times))*16
-    # amplitudes::Array{Float64} = 16:1:116
-
-
-    # @show size(time)
-    # @show size(b)
-    # @show size(c)
-    # p = interpolate(time, BSpline(Linear()))(b)
-    # @show p
-
-    # time::Array{Float64} = 0.0:0.02e-3:20e-3
-# 
-    # points::Array{Float64} = []
-    # times::Array{Float64} = []
-    # open("GuessPulse_pi20ns_amplitude.txt") do f
-    #     while ! eof(f) 
-    #    
-    #        # read a new / next line for every iteration          
-    #        tmp = parse.(Float64, split(readline(f), ' ') )
-    #        append!(points,tmp[2])
-    #        append!(times,tmp[1])
-    #     end
-    # end
-##
     amplitudes::Array{Float64}  = 16:1:1016
     phase::Array{Float64}  = 0:0.36:360
     @show length(amplitudes)
     @show length(phase)
-#
-#
-    #@show length(amplitudes)
-    #@show length(points)
-#
-#
-    points,times = getAmplitudesOrPhaseAndTimes("GuessPulse_pi20ns_amplitude.txt")
 
-    rabi_t(r,times, amplitudes,γ,0.1e-4,points)
+    ampltPoints,times = getAmplitudesOrPhaseAndTimes("GuessPulse_pi20ns_amplitude.txt")
+    phsPoints,_ = getAmplitudesOrPhaseAndTimes("GuessPulse_pi20ns_phase.txt")
 
+    rabi_t(times, amplitudes,phase,0.1e-4,phsPoints,ampltPoints)
 
-    # TODO
-    # * Read phase file and interpolate etc
-    # * fix Rabi :(
-    # Make eveything beautifull,  now its a mess
-
-
-    # hamiltonianTimeEv(t)
 end
 
 main()
