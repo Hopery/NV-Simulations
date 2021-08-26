@@ -1,4 +1,4 @@
-using Plots: length, append!, height, hascolorbar
+using Plots: length, append!, height, hascolorbar, display
 """
 Simulation of a 15 μm laser into diamond, swhowing a rabi experiment.
 """
@@ -14,8 +14,7 @@ using Interpolations
 # operators
 
 # Electron operators
-Sₓ = 1/2 * [0 1;1 0]
-Sₓ = Sₓ ⊗ Matrix(1.0I,2,2)
+Sₓ(γ::Float64) = [0 0.5*exp(γ*im) ; 0.5*exp(-γ*im) 0] ⊗ Matrix(1.0I,2,2)
 S_y = im*0.5*[0 1;-1 0]
 S_y = S_y ⊗ Matrix(1.0I,2,2)
 S_z = [0 0;0 -1]
@@ -81,9 +80,9 @@ H_zfs = D * S_z^2
 H_zeemanₙᵥ = γₙᵥ * B * S_z
 H_zeeman₁₃ = γ₁₃ * B * I_z
 # To rotate in X or Y axis, Omega bc is the "line of the wave"
-H_driveₓ(r::Float64, Ω₀::Float64) = Ω(r,Ω₀) * Sₓ
+H_driveₓ(r::Float64, Ω₀::Float64, γ::Float64) = Ω(r,Ω₀) * Sₓ(γ)
 H_drive_y(r::Float64, Ω₀::Float64) = Ω(r,Ω₀) * S_y
-H_drive_z(r::Float64, Ω₀::Float64) = Δᵣ(r)* S_z
+H_drive_z(r::Float64) = Δᵣ(r)* S_z
 # ω means the different between state 1 and -1 when a magnetic flied is
 # aplied, we multiply it by same Hamiltonian as H_zfs to represent the
 # different spin states.
@@ -96,7 +95,7 @@ H_hyperfine = Axx * S_z * Iₓ + Ayy * S_z * I_y + Azz * S_z * I_z
 # Hamiltonians of the system
 
 # Full electron hamiltonian with both drives
-H(r::Float64, Ω₀::Float64) = H_zfs + H_zeemanₙᵥ + H_zeeman₁₃ + H_drive_z(r, Ω₀) + H_driveₓ(r, Ω₀) +H_drive_y(r, Ω₀)+ H_hyperfine + H_drive_freq
+H(r::Float64, Ω₀::Float64, γ::Float64) = H_zfs + H_zeemanₙᵥ + H_zeeman₁₃ + H_drive_z(r) + H_driveₓ(r, Ω₀,γ) +H_drive_y(r, Ω₀)+ H_hyperfine + H_drive_freq
 # H(r::Float64, t::Float64) = H_zfs + H_zeemanₙᵥ + H_zeeman₁₃ + H_drive_z(r) + H_drive_timeₓ(r,t) + H_hyperfine + H_drive_freq
 # Electron hamiltonian with no drives
 H_free = H_zfs + H_zeemanₙᵥ + H_zeeman₁₃ + H_hyperfine + H_drive_freq
@@ -141,21 +140,27 @@ end
 function mw_element(r::Float64, t::Float64, γ::Float64)::Array{Complex{Float64}}
     Ω₀ = Ω(r,t)
     S = [0 0.5*exp(γ*im) ; 0.5*exp(-γ*im) 0]
-    return Ω₀*S ⊗ Matrix(1.0I,2,2) + H_zfs + H_zeemanₙᵥ + H_drive_freq
+    return Ω₀*S ⊗ Matrix(1.0I,2,2) + H_zfs + H_zeemanₙᵥ + H_drive_freq + H_drive_z(r) + H_hyperfine
 end
 
 function rabi_t(time::Array{Float64}, amplitudes::Array{Float64}, Δt::Float64,ampltPoints::Array{Float64})
     ampl = LinearInterpolation(time,amplitudes, extrapolation_bc=Flat())(ampltPoints)
     positions = 0.0:0.01:width
     tmp::Array{Complex{Float64}} = zeros(length(time),length(positions))
-    ρ₀ = ρ
-    for (i,Ωᵢ) ∈ enumerate(ampl)
-        for (j,r) ∈ enumerate(positions)
-            hm = mw_element(r,Ωᵢ,0.0)
-            ρ₀ = timeEvolution(hm,ρ₀,Δt)
+    for (j,r) ∈ enumerate(positions)
+        ρ₀ = ρ
+        for (i,Ωᵢ) ∈ enumerate(ampl)
+            #hm = mw_element(r,Ωᵢ,0.0)
+            ρ₀ = timeEvolution(H(r,Ωᵢ,0.0),ρ₀,Δt)
             tmp[i,j] = traceWithProy(ρ₀)*r*depth
-        end
+        end 
     end
+    plt1 = plot(time, real(tmp), 
+                title="Rabi",
+                xlabel="Time [μ]",
+                ylabel="Population",)
+    #display(plt1)
+    @show size(tmp)
     display(plot(time, real(real(sum(tmp,dims=2))), label ="rabi"))
 end
 
@@ -168,15 +173,20 @@ function rabi()
     tmp = zeros(length(time),length(positions))
     for (i,t) ∈ enumerate(time)
         for (j,r) ∈ enumerate(positions)
-            tmEv = timeEvolution(H(r,16.0),ρ,t)
+            tmEv = timeEvolution(H(r,16.0,0.0),ρ,t)
             tmp[i,j] = traceWithProy(tmEv)*r*depth
         end
     end
+    plt1 = plot(time, real(tmp), 
+                title="Rabi",
+                xlabel="Time [μ]",
+                ylabel="Population",)
+    display(plt1)
     plt2 = plot(time, real(sum(tmp,dims=2)), 
                 title="Rabi",
                 xlabel="Time [μ]",
                 ylabel="Population")
-    display(plot(plt2,layout=(2,1)))
+    #display(plot(plt2,layout=(2,1)))
 end
 
 
@@ -200,7 +210,7 @@ end
 # Run
 
 function main()
-    # rabi()
+    #rabi()
     # @show t
 
     # amplitudes::Array{Float64}  = 16:1:4019
@@ -224,9 +234,10 @@ function main()
     amplitudes::Array{Float64}  = 16:1:1016
     phase::Array{Float64}  = 0:0.36:360
 
-    times::Array{Float64} = 0.0:1e-6:1e-3
+    times::Array{Float64} = 0.0:1e-4:1e-1
 
-    ampltPoints::Array{Float64} = zeros(length(amplitudes)) * 16
+    ampltPoints::Array{Float64} = ones(length(amplitudes)) * 16
+
     phsPoints::Array{Float64} = zeros(length(amplitudes))
 
     @show length(amplitudes)
@@ -234,7 +245,7 @@ function main()
     @show length(phase)
     @show length(phsPoints)
     @show length(ampltPoints)
-    rabi_t(times, amplitudes,1e-6,ampltPoints)
+    rabi_t(times, amplitudes,1e-4,ampltPoints)
 
 end
 
