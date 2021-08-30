@@ -1,8 +1,10 @@
 using Plots: length, append!, height, hascolorbar, display
+
 """
 Simulation of a 15 μm laser into diamond, swhowing a rabi experiment.
 """
 
+using Distributions
 using Plots
 using LinearAlgebra
 using Statistics
@@ -40,7 +42,7 @@ I_z = Matrix(1.0I,2,2) ⊗ I_z
 D = 2870
 # Magnetic field (G)
 B = 250
-Δ₀ = 1
+Δ₀ = 3
 Δᵣ(r::Float64) = Δ₀ * r
 # gyromagnetic ratio of the NV center’s electron spin(MHz/G)
 γₙᵥ = 2.8
@@ -50,7 +52,7 @@ B = 250
 # Omega in function of `r` (position)
 # Ω₀ =  16
 # 
-Ω(r::Float64, Ω₀::Float64) = (Ω₀*r^2)/(r^2+depth^2)^(3/2)
+Ω(r::Float64, Ω₀::Float64) = (Ω₀*(r+r₀)^2)/((r+r₀)^2+depth^2)^(3/2)
 #Ω(r::Float64, Ω₀::Float64) = (Ω₀)/(r^2+1)
 
 
@@ -67,10 +69,10 @@ Azz = 10e-3
 
 # Laser dimensions in μm
 width = 15.0
-depth = 1.0000000
+depth = 1
 
 # Distance of laser to the wire
-r = 0.01
+r₀ = 0.01
 #####################################################################################
 # Hamiltonians
 #To get a Hamiltonian with the energy levels in the diagonal (zfs = zero field splitting)
@@ -143,25 +145,27 @@ function mw_element(r::Float64, t::Float64, γ::Float64)::Array{Complex{Float64}
     return Ω₀*S ⊗ Matrix(1.0I,2,2) + H_zfs + H_zeemanₙᵥ + H_drive_freq + H_drive_z(r) + H_hyperfine
 end
 
-function rabi_t(time::Array{Float64}, amplitudes::Array{Float64}, Δt::Float64,ampltPoints::Array{Float64})
+function rabi_t(time::Array{Float64}, amplitudes::Array{Float64}, Δt::Float64,ampltPoints::Array{Float64},points::Array{Float64})
     ampl = LinearInterpolation(time,amplitudes, extrapolation_bc=Flat())(ampltPoints)
     positions = 0.0:0.01:width
+    concentration::Array{Float64} = 0.0:1.0:width/2 * 100
+    o::Array{Float64} = width/2 * 100:-1.0:0.1
+    append!(concentration,o)
     tmp::Array{Complex{Float64}} = zeros(length(time),length(positions))
     for (j,r) ∈ enumerate(positions)
         ρ₀ = ρ
         for (i,Ωᵢ) ∈ enumerate(ampl)
             #hm = mw_element(r,Ωᵢ,0.0)
-            ρ₀ = timeEvolution(H(r,Ωᵢ,0.0),ρ₀,Δt)
-            tmp[i,j] = traceWithProy(ρ₀)*r*depth
+            ρ₀ = timeEvolution(H(r,Ωᵢ,88.1),ρ₀,Δt)
+            tmp[i,j] = traceWithProy(ρ₀)*r*depth*concentration[j]
         end 
     end
-    plt1 = plot(time, real(tmp), 
+    plt1 = plot(time, [real(tmp)], 
                 title="Rabi",
                 xlabel="Time [μ]",
                 ylabel="Population",)
     #display(plt1)
-    @show size(tmp)
-    display(plot(time, real(real(sum(tmp,dims=2))), label ="rabi"))
+    display(plot(time, [normalize!(real(sum(tmp,dims=2))),normalize!(points)]))
 end
 
 """
@@ -228,15 +232,18 @@ function main()
     # append!(phsPoints,phsPoints)
     # append!(ampltPoints,ampltPoints)
 
+    points,_ = getAmplitudesOrPhaseAndTimes("data.txt")
+
 
 
     
-    amplitudes::Array{Float64}  = 16:1:1016
-    phase::Array{Float64}  = 0:0.36:360
+    amplitudes::Array{Float64}  = 16:2:115
+    phase::Array{Float64}  = 0:7.3:360
 
-    times::Array{Float64} = 0.0:1e-4:1e-1
+    # In ns
+    times::Array{Float64} = 0.0:5.1:250
 
-    ampltPoints::Array{Float64} = ones(length(amplitudes)) * 16
+    ampltPoints::Array{Float64} = ones(length(amplitudes)) * 14.1
 
     phsPoints::Array{Float64} = zeros(length(amplitudes))
 
@@ -245,7 +252,7 @@ function main()
     @show length(phase)
     @show length(phsPoints)
     @show length(ampltPoints)
-    rabi_t(times, amplitudes,1e-4,ampltPoints)
+    rabi_t(times, amplitudes,6e-3,ampltPoints,points)
 
 end
 
